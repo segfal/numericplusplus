@@ -4,7 +4,6 @@
 extern "C" {
 #endif
 
-// Float prototypes
 float add_float(float a, float b);
 float sub_float(float a, float b);
 float mul_float(float a, float b);
@@ -13,7 +12,6 @@ float mod_float(float a, float b);
 float power_float(float a, float n);
 float root_float(float a, float n);
 
-// Int prototypes
 int add_int(int a, int b);
 int sub_int(int a, int b);
 int mul_int(int a, int b);
@@ -27,9 +25,7 @@ float fact(float a);
 }
 #endif
 
-// Modern C++ Interface
 #ifdef __cplusplus
-// Function Overloading
 inline int add(int a, int b) { return add_int(a, b); }
 inline float add(float a, float b) { return add_float(a, b); }
 
@@ -39,8 +35,8 @@ inline float sub(float a, float b) { return sub_float(a, b); }
 inline int mul(int a, int b) { return mul_int(a, b); }
 inline float mul(float a, float b) { return mul_float(a, b); }
 
-inline int div(int a, int b) { return div_int(a, b); }
-inline float div(float a, float b) { return div_float(a, b); }
+inline int divide(int a, int b) { return div_int(a, b); }
+inline float divide(float a, float b) { return div_float(a, b); }
 
 inline int mod(int a, int b) { return mod_int(a, b); }
 inline float mod(float a, float b) { return mod_float(a, b); }
@@ -54,7 +50,7 @@ inline float root(float a, float n) { return root_float(a, n); }
 #define add(a, b) _Generic((a), int: add_int, float: add_float)(a, b)
 #define sub(a, b) _Generic((a), int: sub_int, float: sub_float)(a, b)
 #define mul(a, b) _Generic((a), int: mul_int, float: mul_float)(a, b)
-#define div(a, b) _Generic((a), int: div_int, float: div_float)(a, b)
+#define divide(a, b) _Generic((a), int: div_int, float: div_float)(a, b)
 #define mod(a, b) _Generic((a), int: mod_int, float: mod_float)(a, b)
 #define power(a, b) _Generic((a), int: power_int, float: power_float)(a, b)
 #define root(a, b) root_float(a, b)
