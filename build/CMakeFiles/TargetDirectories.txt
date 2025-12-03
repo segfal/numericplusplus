@@ -1,6 +1,0 @@
-/home/runner/work/numericplusplus/numericplusplus/build/CMakeFiles/core_math.dir
-/home/runner/work/numericplusplus/numericplusplus/build/CMakeFiles/test_core.dir
-/home/runner/work/numericplusplus/numericplusplus/build/CMakeFiles/bigint_lib.dir
-/home/runner/work/numericplusplus/numericplusplus/build/CMakeFiles/test_bigint.dir
-/home/runner/work/numericplusplus/numericplusplus/build/CMakeFiles/edit_cache.dir
-/home/runner/work/numericplusplus/numericplusplus/build/CMakeFiles/rebuild_cache.dir

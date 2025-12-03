@@ -1,1 +1,6 @@
 output_files
+build/
+*.o
+*.a
+test_core
+test_bigint
