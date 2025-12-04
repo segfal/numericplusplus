@@ -11,8 +11,6 @@ rm -f Makefile
 
 # Remove generated libraries and executables
 rm -f libcore_math.a
-rm -f libbigint_lib.a
 rm -f test_core
-rm -f test_bigint
 
 echo "Cleanup complete."

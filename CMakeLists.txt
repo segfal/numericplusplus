@@ -13,10 +13,3 @@ add_library(core_math src/core/math_utils.c)
 # Test Executable (C)
 add_executable(test_core tests/test_core.c)
 target_link_libraries(test_core core_math)
-
-# BigInt Library (C++)
-add_library(bigint_lib src/numbers/BigInt.cpp)
-
-# Test Executable (C++)
-add_executable(test_bigint tests/test_bigint.cpp)
-target_link_libraries(test_bigint bigint_lib)
