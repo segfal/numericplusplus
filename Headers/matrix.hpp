@@ -17,6 +17,7 @@ class Matrix {
     public:
         // Constructors and Destructors
         Matrix(size_t rows, size_t cols, T value = T()): rows_(rows), cols_(cols), data_(rows, std::vector<T>(cols, value)) {}
+        Matrix(const std::vector<std::vector<T>>& data): rows_(data.size()), cols_(data[0].size()), data_(data) {}
         ~Matrix() {}
         
         // Accessors
@@ -36,13 +37,13 @@ class Matrix {
         Matrix<T> inverse() const;
         T determinant() const;
         T trace() const;
-        size_t rank() const;
-        size_t nullity() const;
-        Matrix<T> kernel() const; // todo
-        Matrix<T> image() const;// todo 
-        Matrix<T> eigenvalues() const; // todo 
-        Matrix<T> eigenvectors() const; // todo 
-        Matrix<T> singularValues() const; // todo 
+        size_t rank() const; // complete
+        size_t nullity() const; // incomplete
+        Matrix<T> kernel() const; // incomplete
+        Matrix<T> image() const;// incomplete
+        Matrix<T> eigenvalues() const; // incomplete
+        Matrix<T> eigenvectors() const; // incomplete
+        Matrix<T> singularValues() const; // incomplete
 
         // Matrix Properties
         bool isSquare() const {return rows_ == cols_;}
