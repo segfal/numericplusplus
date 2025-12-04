@@ -7,6 +7,8 @@
 #include <vector>
 #include <string>
 #include <stdexcept>
+#include <cmath>
+#include <algorithm>
 
 // ============================================================================
 // Matrix Class Declaration
@@ -33,11 +35,15 @@ class Matrix {
         Matrix<T> operator-(const Matrix<T>& other) const {return subtract(other);}
         Matrix<T> operator*(const Matrix<T>& other) const {return multiply(other);}
         Matrix<T> operator/(const Matrix<T>& other) const {return divide(other);}
+        
+        Matrix<T> rowReduce() const;
+        Matrix<T> columnReduce() const {return this->transpose().rowReduce().transpose();}
+        Matrix<T> reducedRowEchelonForm() const;
         Matrix<T> transpose() const;
         Matrix<T> inverse() const;
         T determinant() const;
         T trace() const;
-        size_t rank() const; // complete
+        size_t rank() const;
         size_t nullity() const; // incomplete
         Matrix<T> kernel() const; // incomplete
         Matrix<T> image() const;// incomplete
@@ -47,22 +53,22 @@ class Matrix {
 
         // Matrix Properties
         bool isSquare() const {return rows_ == cols_;}
-        bool isSymmetric() const {return this->isSquare() && !iterCheck([this](size_t i, size_t j) -> bool {return data_[i][j] != data_[j][i];});}
-        bool isRowEchelonForm() const {return !iterCheck([this](size_t i, size_t j) -> bool {return data_[i][j] != 0;});}
-        bool isReducedRowEchelonForm() const {return this->isRowEchelonForm() && this->isSquare();}
-        bool isInvertible() const {return this->isSquare() && this->isNonSingular();}
-        bool isSingular() const {return this->isSquare() && !this->isInvertible();}
-        bool isNonSingular() const {return this->isSquare() && !this->isInvertible();}
-        bool isPositiveDefinite() const {return this->isSquare() && !iterCheck([this](size_t i, size_t j) -> bool {return data_[i][j] != data_[j][i];});}
-        bool isNegativeDefinite() const {return this->isSquare() && !iterCheck([this](size_t i, size_t j) -> bool {return data_[i][j] != data_[j][i];});}
-        bool isPositiveSemidefinite() const {return this->isSquare() && !iterCheck([this](size_t i, size_t j) -> bool {return data_[i][j] != data_[j][i];});}
-        bool isNegativeSemidefinite() const {return this->isSquare() && !iterCheck([this](size_t i, size_t j) -> bool {return data_[i][j] != data_[j][i];});}
-        bool isIndefinite() const {return this->isSquare() && !this->isInvertible();}
-        bool isHermitian() const {return this->isSquare() && !iterCheck([this](size_t i, size_t j) -> bool {return data_[i][j] != data_[j][i];});}
-        bool isSkewHermitian() const {return this->isSquare() && iterCheck([this](size_t i, size_t j) -> bool {return data_[i][j] != data_[j][i];});}
-        bool isUnitary() const {return this->isSquare() && !iterCheck([this](size_t i, size_t j) -> bool {return data_[i][j] != data_[j][i];});}
-        bool isOrthogonal() const {return this->isSquare() && !iterCheck([this](size_t i, size_t j) -> bool {return data_[i][j] != data_[j][i];});}
-        bool isIsometric() const {return this->isSquare() && !iterCheck([this](size_t i, size_t j) -> bool {return data_[i][j] != data_[j][i];});}
+        bool isSymmetric() const;
+        bool isRowEchelonForm() const;
+        bool isReducedRowEchelonForm() const;
+        bool isInvertible() const {return this->isNonSingular();}
+        bool isSingular() const;
+        bool isNonSingular() const;
+        bool isPositiveDefinite() const;
+        bool isNegativeDefinite() const;
+        bool isPositiveSemidefinite() const;
+        bool isNegativeSemidefinite() const;
+        bool isIndefinite() const;
+        bool isHermitian() const {return this->isSymmetric();}
+        bool isSkewHermitian() const;
+        bool isUnitary() const {return this->isOrthogonal();}
+        bool isOrthogonal() const;
+        bool isIsometric() const;
         
     private:
         // Member Variables
@@ -369,18 +375,561 @@ size_t Matrix<T>::nullity() const {
 
 template <typename T>
 Matrix<T> Matrix<T>::kernel() const {
-    // Kernel (null space) - returns a matrix whose columns are basis vectors
-    // This is a simplified implementation
+    // Kernel (null space) - returns a matrix whose columns are basis vectors for the null space
+    // Solves Ax = 0 using RREF
     size_t nullityDim = this->nullity();
     
     if (nullityDim == 0) {
-        // Return empty matrix or zero matrix
+        // Return empty matrix (cols_ x 0)
         return Matrix<T>(cols_, 0);
     }
     
-    // For now, return identity matrix scaled by nullity
-    // A proper implementation would solve Ax = 0 using row reduction
+    // Get RREF to identify pivot columns and free variables
+    Matrix<T> rref = this->reducedRowEchelonForm();
+    
+    // Find pivot columns (columns with leading 1s)
+    std::vector<bool> isPivotCol(cols_, false);
+    std::vector<size_t> pivotCols;
+    size_t currentRow = 0;
+    
+    for (size_t col = 0; col < cols_ && currentRow < rows_; col++) {
+        if (rref(currentRow, col) != T(0)) {
+            // Found a pivot
+            isPivotCol[col] = true;
+            pivotCols.push_back(col);
+            currentRow++;
+        }
+    }
+    
+    // Create basis vectors for free variables (non-pivot columns)
     Matrix<T> result(cols_, nullityDim, T(0));
-    // TODO: Implement proper null space calculation
+    size_t basisIdx = 0;
+    
+    for (size_t col = 0; col < cols_; col++) {
+        if (!isPivotCol[col]) {
+            // This is a free variable - create a basis vector
+            result(col, basisIdx) = T(1); // Set free variable to 1
+            
+            // Back-substitute to find values of pivot variables
+            // For each row in RREF, solve for pivot variables
+            for (int row = static_cast<int>(pivotCols.size()) - 1; row >= 0; row--) {
+                size_t pivotCol = pivotCols[row];
+                T sum = T(0);
+                
+                // Sum all non-pivot contributions
+                for (size_t j = pivotCol + 1; j < cols_; j++) {
+                    if (!isPivotCol[j] || j == col) {
+                        sum += rref(row, j) * result(j, basisIdx);
+                    }
+                }
+                
+                // Solve: pivotVar = -sum (since pivot is 1 in RREF)
+                result(pivotCol, basisIdx) = -sum;
+            }
+            
+            basisIdx++;
+        }
+    }
+    
     return result;
+}
+
+template <typename T>
+Matrix<T> Matrix<T>::image() const {
+   
+    size_t rankDim = this->rank();
+    
+    if (rankDim == 0) {
+        return Matrix<T>(rows_, 0);
+    }
+    
+    Matrix<T> rref = this->reducedRowEchelonForm();
+    
+    std::vector<size_t> pivotCols;
+    size_t currentRow = 0;
+    
+    for (size_t col = 0; col < cols_ && currentRow < rows_; col++) {
+        if (rref(currentRow, col) != T(0)) {
+            pivotCols.push_back(col);
+            currentRow++;
+        }
+    }
+    
+    Matrix<T> result(rows_, rankDim);
+    for (size_t i = 0; i < pivotCols.size(); i++) {
+        size_t pivotCol = pivotCols[i];
+        for (size_t row = 0; row < rows_; row++) {
+            result(row, i) = data_[row][pivotCol];
+        }
+    }
+    
+    return result;
+}
+
+template <typename T>
+Matrix<T> Matrix<T>::eigenvalues() const {
+   
+    requireSquare("compute eigenvalues");
+    
+    if (rows_ == 1) {
+        Matrix<T> result(1, 1);
+        result(0, 0) = data_[0][0];
+        return result;
+    }
+    
+    if (rows_ == 2) {
+        T trace = this->trace();
+        T det = this->determinant();
+        
+        T discriminant = trace * trace - T(4) * det;
+        
+        Matrix<T> result(2, 1);
+        
+        if (discriminant < T(0)) {
+            T realPart = trace / T(2);
+            T imagPart = std::sqrt(-discriminant) / T(2);
+            result(0, 0) = realPart;
+            result(1, 0) = realPart;
+        } else {
+            T sqrtDisc = std::sqrt(discriminant);
+            result(0, 0) = (trace + sqrtDisc) / T(2);
+            result(1, 0) = (trace - sqrtDisc) / T(2);
+        }
+        
+        return result;
+    }
+    
+    Matrix<T> result(rows_, 1, T(0));
+    
+    Matrix<T> v(rows_, 1, T(1));
+    
+    T norm = T(0);
+    for (size_t i = 0; i < rows_; i++) {
+        norm += v(i, 0) * v(i, 0);
+    }
+    norm = std::sqrt(norm);
+    if (norm != T(0)) {
+        for (size_t i = 0; i < rows_; i++) {
+            v(i, 0) /= norm;
+        }
+    }
+    
+    const size_t maxIter = 100;
+    const T tolerance = T(1e-10);
+    
+    for (size_t iter = 0; iter < maxIter; iter++) {
+        Matrix<T> Av = (*this) * v;
+        
+        T numerator = T(0);
+        T denominator = T(0);
+        for (size_t i = 0; i < rows_; i++) {
+            numerator += v(i, 0) * Av(i, 0);
+            denominator += v(i, 0) * v(i, 0);
+        }
+        
+        T eigenvalue = (denominator != T(0)) ? numerator / denominator : T(0);
+        result(0, 0) = eigenvalue;
+        
+        norm = T(0);
+        for (size_t i = 0; i < rows_; i++) {
+            norm += Av(i, 0) * Av(i, 0);
+        }
+        norm = std::sqrt(norm);
+        
+        if (norm < tolerance) break;
+        
+        for (size_t i = 0; i < rows_; i++) {
+            v(i, 0) = Av(i, 0) / norm;
+        }
+    }
+    
+    return result;
+}
+
+template <typename T>
+Matrix<T> Matrix<T>::eigenvectors() const {
+    requireSquare("compute eigenvectors");
+    
+    Matrix<T> eigenvals = this->eigenvalues();
+    
+    Matrix<T> result(rows_, rows_, T(0));
+    
+    if (rows_ == 1) {
+        result(0, 0) = T(1);
+        return result;
+    }
+    
+    if (rows_ == 2) {
+        for (size_t i = 0; i < 2 && i < eigenvals.getRows(); i++) {
+            T lambda = eigenvals(i, 0);
+            
+            Matrix<T> A_minus_lambdaI = *this;
+            A_minus_lambdaI(0, 0) -= lambda;
+            A_minus_lambdaI(1, 1) -= lambda;
+            
+            Matrix<T> eigenvec = A_minus_lambdaI.kernel();
+            
+            if (eigenvec.getCols() > 0) {
+                T norm = T(0);
+                for (size_t j = 0; j < eigenvec.getRows(); j++) {
+                    norm += eigenvec(j, 0) * eigenvec(j, 0);
+                }
+                norm = std::sqrt(norm);
+                if (norm != T(0)) {
+                    for (size_t j = 0; j < eigenvec.getRows(); j++) {
+                        result(j, i) = eigenvec(j, 0) / norm;
+                    }
+                } else {
+                    if (A_minus_lambdaI(0, 0) != T(0) || A_minus_lambdaI(1, 0) != T(0)) {
+                        result(0, i) = -A_minus_lambdaI(1, 0);
+                        result(1, i) = A_minus_lambdaI(0, 0);
+                        norm = std::sqrt(result(0, i) * result(0, i) + result(1, i) * result(1, i));
+                        if (norm != T(0)) {
+                            result(0, i) /= norm;
+                            result(1, i) /= norm;
+                        }
+                    } else {
+                        result(0, i) = T(1);
+                        result(1, i) = T(0);
+                    }
+                }
+            } else {
+                result(0, i) = T(1);
+                result(1, i) = T(0);
+            }
+        }
+        return result;
+    }
+    
+    Matrix<T> v(rows_, 1, T(1));
+    
+    T norm = T(0);
+    for (size_t i = 0; i < rows_; i++) {
+        norm += v(i, 0) * v(i, 0);
+    }
+    norm = std::sqrt(norm);
+    if (norm != T(0)) {
+        for (size_t i = 0; i < rows_; i++) {
+            v(i, 0) /= norm;
+        }
+    }
+    
+    const size_t maxIter = 100;
+    for (size_t iter = 0; iter < maxIter; iter++) {
+        Matrix<T> Av = (*this) * v;
+        
+        norm = T(0);
+        for (size_t i = 0; i < rows_; i++) {
+            norm += Av(i, 0) * Av(i, 0);
+        }
+        norm = std::sqrt(norm);
+        
+        if (norm < T(1e-10)) break;
+        
+        for (size_t i = 0; i < rows_; i++) {
+            v(i, 0) = Av(i, 0) / norm;
+        }
+    }
+    
+    for (size_t i = 0; i < rows_; i++) {
+        result(i, 0) = v(i, 0);
+    }
+    
+    return result;
+}
+
+template <typename T>
+Matrix<T> Matrix<T>::singularValues() const {
+
+    size_t minDim = (rows_ < cols_) ? rows_ : cols_;
+    Matrix<T> result(minDim, 1);
+    
+    Matrix<T> ATA = this->transpose() * (*this);
+    
+    Matrix<T> eigenvals = ATA.eigenvalues();
+    
+    size_t count = (eigenvals.getRows() < minDim) ? eigenvals.getRows() : minDim;
+    for (size_t i = 0; i < count; i++) {
+        T eigenval = eigenvals(i, 0);
+        if (eigenval < T(0)) eigenval = T(0);
+        result(i, 0) = std::sqrt(eigenval);
+    }
+    
+    for (size_t i = 0; i < count; i++) {
+        for (size_t j = i + 1; j < count; j++) {
+            if (result(i, 0) < result(j, 0)) {
+                std::swap(result(i, 0), result(j, 0));
+            }
+        }
+    }
+    
+    return result;
+}
+template <typename T>
+Matrix<T> Matrix<T>::rowReduce() const {
+    Matrix<T> result = *this;
+    size_t rank = 0;
+    
+    for (size_t col = 0; col < cols_ && rank < rows_; col++) {
+        size_t pivotRow = rank;
+        while (pivotRow < rows_ && result(pivotRow, col) == T(0)) {
+            pivotRow++;
+        }
+        
+        if (pivotRow < rows_) {
+            if (pivotRow != rank) {
+                for (size_t j = 0; j < cols_; j++) {
+                    std::swap(result(rank, j), result(pivotRow, j));
+                }
+            }
+            
+            for (size_t i = rank + 1; i < rows_; i++) {
+                if (result(i, col) != T(0)) {
+                    T factor = result(i, col) / result(rank, col);
+                    for (size_t j = col; j < cols_; j++) {
+                        result(i, j) -= factor * result(rank, j);
+                    }
+                }
+            }
+            rank++;
+        }
+    }
+    return result;
+}
+
+template <typename T>
+Matrix<T> Matrix<T>::reducedRowEchelonForm() const {
+    Matrix<T> result = this->rowReduce();
+    size_t rank = 0;
+    
+    for (size_t i = 0; i < rows_; i++) {
+        bool isNonZeroRow = false;
+        for (size_t j = 0; j < cols_; j++) {
+            if (result(i, j) != T(0)) {
+                isNonZeroRow = true;
+                break;
+            }
+        }
+        if (isNonZeroRow) rank++;
+    }
+    
+for (int i = static_cast<int>(rank) - 1; i >= 0; i--) {
+        size_t pivotCol = 0;
+        while (pivotCol < cols_ && result(i, pivotCol) == T(0)) {
+            pivotCol++;
+        }
+        
+        if (pivotCol < cols_ && result(i, pivotCol) != T(0)) {
+            T pivot = result(i, pivotCol);
+            for (size_t j = pivotCol; j < cols_; j++) {
+                result(i, j) /= pivot;
+            }
+            
+            for (int k = i - 1; k >= 0; k--) {
+                if (result(k, pivotCol) != T(0)) {
+                    T factor = result(k, pivotCol);
+                    for (size_t j = pivotCol; j < cols_; j++) {
+                        result(k, j) -= factor * result(i, j);
+                    }
+                }
+            }
+        }
+    }
+    return result;
+}
+
+// ============================================================================
+// Matrix Property Implementations
+// ============================================================================
+
+template <typename T>
+bool Matrix<T>::isSymmetric() const {
+    if (!this->isSquare()) return false;
+    return !iterCheck([this](size_t i, size_t j) -> bool {
+        return data_[i][j] != data_[j][i];
+    });
+}
+
+template <typename T>
+bool Matrix<T>::isRowEchelonForm() const {
+ 
+    
+    size_t lastPivotCol = SIZE_MAX;
+    
+    for (size_t i = 0; i < rows_; i++) {
+        size_t pivotCol = cols_;
+        for (size_t j = 0; j < cols_; j++) {
+            if (data_[i][j] != T(0)) {
+                pivotCol = j;
+                break;
+            }
+        }
+        
+        if (pivotCol == cols_) {
+            for (size_t k = i + 1; k < rows_; k++) {
+                for (size_t j = 0; j < cols_; j++) {
+                    if (data_[k][j] != T(0)) return false;
+                }
+            }
+            break;
+        } else {
+            if (pivotCol <= lastPivotCol && lastPivotCol != SIZE_MAX) {
+                return false;
+            }
+            lastPivotCol = pivotCol;
+            
+            for (size_t k = i + 1; k < rows_; k++) {
+                if (data_[k][pivotCol] != T(0)) return false;
+            }
+        }
+    }
+    
+    return true;
+}
+
+template <typename T>
+bool Matrix<T>::isReducedRowEchelonForm() const {
+    
+    if (!this->isRowEchelonForm()) return false;
+    
+    for (size_t i = 0; i < rows_; i++) {
+        size_t pivotCol = cols_;
+        for (size_t j = 0; j < cols_; j++) {
+            if (data_[i][j] != T(0)) {
+                pivotCol = j;
+                break;
+            }
+        }
+        
+        if (pivotCol == cols_) continue;
+        
+        if (data_[i][pivotCol] != T(1)) return false;
+        
+        for (size_t k = 0; k < rows_; k++) {
+            if (k != i && data_[k][pivotCol] != T(0)) return false;
+        }
+    }
+    
+    return true;
+}
+
+template <typename T>
+bool Matrix<T>::isNonSingular() const {
+    if (!this->isSquare()) return false;
+    return this->determinant() != T(0);
+}
+
+template <typename T>
+bool Matrix<T>::isSingular() const {
+    if (!this->isSquare()) return false;
+    return this->determinant() == T(0);
+}
+
+template <typename T>
+bool Matrix<T>::isPositiveDefinite() const {
+    if (!this->isSquare() || !this->isSymmetric()) return false;
+    
+    for (size_t k = 1; k <= rows_; k++) {
+        Matrix<T> submatrix(k, k);
+        for (size_t i = 0; i < k; i++) {
+            for (size_t j = 0; j < k; j++) {
+                submatrix(i, j) = data_[i][j];
+            }
+        }
+        if (submatrix.determinant() <= T(0)) return false;
+    }
+    return true;
+}
+
+template <typename T>
+bool Matrix<T>::isNegativeDefinite() const {
+    if (!this->isSquare() || !this->isSymmetric()) return false;
+    
+    Matrix<T> negA = this->scaleByScalar(T(-1));
+    return negA.isPositiveDefinite();
+}
+
+template <typename T>
+bool Matrix<T>::isPositiveSemidefinite() const {
+    if (!this->isSquare() || !this->isSymmetric()) return false;
+    
+    if (rows_ <= 2) {
+        Matrix<T> eigenvals = this->eigenvalues();
+        for (size_t i = 0; i < eigenvals.getRows(); i++) {
+            if (eigenvals(i, 0) < T(0)) return false;
+        }
+        return true;
+    }
+    
+   
+    return false;   
+}
+
+template <typename T>
+bool Matrix<T>::isNegativeSemidefinite() const {
+    if (!this->isSquare() || !this->isSymmetric()) return false;
+    
+    Matrix<T> negA = this->scaleByScalar(T(-1));
+    return negA.isPositiveSemidefinite();
+}
+
+template <typename T>
+bool Matrix<T>::isIndefinite() const {
+    if (!this->isSquare() || !this->isSymmetric()) return false;
+    
+    if (rows_ <= 2) {
+        Matrix<T> eigenvals = this->eigenvalues();
+        bool hasPositive = false;
+        bool hasNegative = false;
+        for (size_t i = 0; i < eigenvals.getRows(); i++) {
+            if (eigenvals(i, 0) > T(0)) hasPositive = true;
+            if (eigenvals(i, 0) < T(0)) hasNegative = true;
+        }
+        return hasPositive && hasNegative;
+    }
+    
+    return false; 
+}
+
+template <typename T>
+bool Matrix<T>::isSkewHermitian() const {
+    if (!this->isSquare()) return false;
+    
+    return !iterCheck([this](size_t i, size_t j) -> bool {
+        if (i == j) return data_[i][j] != T(0);
+        return data_[i][j] != -data_[j][i];
+    });
+}
+
+template <typename T>
+bool Matrix<T>::isOrthogonal() const {
+    if (!this->isSquare()) return false;
+    
+    Matrix<T> AAT = (*this) * this->transpose();
+    
+    const T tolerance = T(1e-10);
+    for (size_t i = 0; i < rows_; i++) {
+        for (size_t j = 0; j < cols_; j++) {
+            T expected = (i == j) ? T(1) : T(0);
+            if (std::abs(AAT(i, j) - expected) > tolerance) return false;
+        }
+    }
+    return true;
+}
+
+template <typename T>
+bool Matrix<T>::isIsometric() const {
+
+    if (!this->isSquare()) return false;
+    
+    Matrix<T> ATA = this->transpose() * (*this);
+    
+    const T tolerance = T(1e-10);
+    for (size_t i = 0; i < rows_; i++) {
+        for (size_t j = 0; j < cols_; j++) {
+            T expected = (i == j) ? T(1) : T(0);
+            if (std::abs(ATA(i, j) - expected) > tolerance) return false;
+        }
+    }
+    return true;
 }
