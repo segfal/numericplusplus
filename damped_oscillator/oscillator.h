@@ -4,17 +4,15 @@
 
 #include <stdio.h>
 
-
 typedef struct {
-    double position;
-    double velocity;
+  double position;
+  double velocity;
 } State;
 
-
 typedef struct {
-    double mass;
-    double damping;
-    double stiffness;
+  double mass;
+  double damping;
+  double stiffness;
 } Parameters;
 
 // Function Prototypes for numerical solving
